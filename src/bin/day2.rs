@@ -16,6 +16,12 @@ pub struct Game {
     max: HashMap<Colour, usize>,
 }
 
+impl Game {
+    pub fn power(&self) -> usize {
+        self.max.values().fold(1, |acc, v| acc * v)
+    }
+}
+
 fn parse_game(s: &str) -> Game {
     let (id, s) = s.split_once(": ").expect("Has a colon");
     let id = *(&id[5..].parse::<usize>().expect("Id is a number"));
@@ -73,6 +79,25 @@ mod part1 {
     }
 }
 
+mod part2 {
+    use super::*;
+
+    pub fn calculate(games: &Vec<Game>) -> usize {
+        games.iter().map(|game| game.power()).sum()
+    }
+
+    #[cfg(test)]
+    mod test {
+        use super::*;
+
+        #[test]
+        fn test_example() {
+            let games = parse_input(aoc::example::example_lines("day2.txt"));
+            assert_eq!(calculate(&games), 2286);
+        }
+    }
+}
+
 fn parse_input(lines: impl Iterator<Item = String>) -> Vec<Game> {
     lines.map(|line| parse_game(&line)).collect()
 }
@@ -83,4 +108,5 @@ fn main() {
     let games = parse_input(cli.line_reader());
 
     println!("Part 1: {}", part1::calculate(&games));
+    println!("Part 2: {}", part2::calculate(&games));
 }
