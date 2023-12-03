@@ -115,10 +115,55 @@ mod part1 {
     }
 }
 
+mod part2 {
+    use super::*;
+
+    pub fn calculate(schematic: &Schematic) -> usize {
+        schematic
+            .symbols
+            .iter()
+            .filter(|symbol| symbol.char == '*')
+            .map(|symbol| {
+                let mut matches: u8 = 0;
+                let mut ratio: usize = 1;
+
+                for part in &schematic.parts {
+                    if part.points.contains(&symbol.point) {
+                        matches += 1;
+                        ratio *= part.number;
+                    }
+                    if matches > 2 {
+                        return 0;
+                    }
+                }
+
+                if matches == 2 {
+                    ratio
+                } else {
+                    0
+                }
+            })
+            .sum()
+    }
+
+    #[cfg(test)]
+    mod test {
+        use super::*;
+
+        #[test]
+        fn test_example() {
+            let schematic = parse_input(aoc::example::example_lines("day3.txt"));
+
+            assert_eq!(calculate(&schematic), 467835);
+        }
+    }
+}
+
 fn main() {
     let cli = aoc::cli::parse();
 
     let schematic = parse_input(cli.line_reader());
 
-    println!("Part 1: {}", part1::calculate(&schematic))
+    println!("Part 1: {}", part1::calculate(&schematic));
+    println!("Part 2: {}", part2::calculate(&schematic));
 }
