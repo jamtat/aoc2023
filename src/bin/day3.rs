@@ -36,10 +36,10 @@ fn parse_input(lines: impl Iterator<Item = String>) -> Schematic {
     let mut parts: Vec<Part> = vec![];
     let mut symbols: Vec<Symbol> = vec![];
 
-    let mut current_number: Option<usize> = None;
-    let mut current_points: HashSet<Point> = HashSet::new();
-
     for (y, line) in lines.enumerate() {
+        let mut current_number: Option<usize> = None;
+        let mut current_points: HashSet<Point> = HashSet::new();
+
         let y = y as isize;
         for (x, c) in line.chars().enumerate() {
             let x = x as isize;
