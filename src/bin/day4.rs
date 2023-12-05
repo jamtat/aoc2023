@@ -5,6 +5,19 @@ struct Input {
     cards: Vec<Card>,
 }
 
+impl Input {
+    pub fn get_card(&self, id: usize) -> Option<&Card> {
+        self.cards.get(id - 1)
+    }
+
+    pub fn cards_won_from_card(&self, id: usize) -> impl Iterator<Item = &Card> {
+        let card = self.get_card(id).unwrap();
+        let count = card.win_count();
+
+        (id + 1..(id + count + 1)).filter_map(|id| self.get_card(id))
+    }
+}
+
 #[derive(Debug)]
 struct Card {
     id: usize,
@@ -78,10 +91,45 @@ mod part1 {
         }
     }
 }
+
+mod part2 {
+    use std::collections::HashMap;
+
+    use super::*;
+
+    pub fn calculate(input: &Input) -> usize {
+        let mut card_count: HashMap<usize, usize> =
+            input.cards.iter().map(|card| (card.id, 1)).collect();
+
+        for card in &input.cards {
+            let copies = *card_count.get(&card.id).unwrap();
+
+            for won_card in input.cards_won_from_card(card.id) {
+                *card_count.get_mut(&won_card.id).unwrap() += copies;
+            }
+        }
+
+        card_count.values().sum()
+    }
+
+    #[cfg(test)]
+    mod test {
+        use super::*;
+
+        #[test]
+        fn test_example() {
+            let input = parse_input(aoc::example::example_lines("day4.txt"));
+
+            assert_eq!(calculate(&input), 30);
+        }
+    }
+}
+
 fn main() {
     let cli = aoc::cli::parse();
 
     let input = parse_input(cli.line_reader());
 
     println!("Part 1: {}", part1::calculate(&input));
+    println!("Part 2: {}", part2::calculate(&input));
 }
