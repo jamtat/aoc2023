@@ -1,4 +1,4 @@
-use aoc2023::aoc;
+use aoc2023::{aoc, arr_chunks};
 use nom;
 
 #[derive(Debug)]
@@ -11,11 +11,52 @@ impl Almanac {
     pub fn convert(&self, seed: usize) -> usize {
         self.maps
             .iter()
-            .fold(seed, |seed, ranges| ranges.try_convert(seed))
+            .fold(seed, |seed, map| map.try_convert(seed))
+    }
+
+    pub fn convert_seed_range(&self, sr: &SourceRange) -> Vec<SourceRange> {
+        self.maps.iter().fold(vec![sr.clone()], |srs, map| {
+            srs.into_iter()
+                .flat_map(|sr| map.convert_source_range(&sr))
+                .collect()
+        })
     }
 
     pub fn locations(&self) -> Vec<usize> {
         self.seeds.iter().map(|seed| self.convert(*seed)).collect()
+    }
+
+    pub fn seed_ranges(&self) -> Vec<SourceRange> {
+        arr_chunks(self.seeds.iter().cloned())
+            .map(|[start, length]| SourceRange::new(start, length))
+            .collect()
+    }
+
+    pub fn locations_seed_ranges(&self) -> Vec<SourceRange> {
+        self.seed_ranges()
+            .iter()
+            .flat_map(|sr| self.convert_seed_range(sr))
+            .collect()
+    }
+}
+
+#[derive(Debug, PartialEq, Eq, Copy, Clone)]
+struct SourceRange {
+    start: usize,
+    length: usize,
+}
+
+impl SourceRange {
+    pub fn new(start: usize, length: usize) -> Self {
+        Self { start, length }
+    }
+
+    pub fn from_start_end(start: usize, end: usize) -> Self {
+        Self::new(start, end - start + 1)
+    }
+
+    pub fn end(&self) -> usize {
+        self.start + self.length - 1
     }
 }
 
@@ -27,11 +68,43 @@ struct Range {
 }
 
 impl Range {
+    fn src_end(&self) -> usize {
+        self.src + self.length - 1
+    }
     pub fn new(src: usize, dst: usize, length: usize) -> Self {
         Self { src, dst, length }
     }
     pub fn convert(&self, src: usize) -> Option<usize> {
         (src >= self.src && src < self.src + self.length).then(|| self.dst + (src - self.src))
+    }
+    pub fn convert_source_range(
+        &self,
+        sr: &SourceRange,
+    ) -> (Vec<SourceRange>, Option<SourceRange>) {
+        if sr.start > self.src_end() || sr.end() < self.src {
+            // No overlap
+            (vec![sr.clone()], None)
+        } else {
+            let mut out_unchanged = vec![];
+            // Portion before overlap
+            if sr.start < self.src {
+                out_unchanged.push(SourceRange::from_start_end(sr.start, self.src - 1))
+            }
+
+            // Portion after overlap
+
+            if sr.end() > self.src_end() {
+                out_unchanged.push(SourceRange::from_start_end(self.src_end() + 1, sr.end()))
+            }
+
+            (
+                out_unchanged,
+                Some(SourceRange::from_start_end(
+                    self.convert(sr.start.max(self.src)).unwrap(),
+                    self.convert(sr.end().min(self.src_end())).unwrap(),
+                )),
+            )
+        }
     }
 }
 
@@ -45,6 +118,7 @@ impl Map {
     pub fn new(name: String, ranges: Vec<Range>) -> Self {
         Self { name, ranges }
     }
+
     pub fn convert(&self, src: usize) -> Option<usize> {
         for range in &self.ranges {
             if let Some(dst) = range.convert(src) {
@@ -56,6 +130,28 @@ impl Map {
 
     pub fn try_convert(&self, src: usize) -> usize {
         self.convert(src).unwrap_or(src)
+    }
+
+    pub fn convert_source_range(&self, sr: &SourceRange) -> Vec<SourceRange> {
+        let mut converted = vec![];
+        let mut unchanged = vec![sr.clone()];
+
+        for range in &self.ranges {
+            let queue = unchanged.clone();
+            unchanged.clear();
+
+            for sr in queue.into_iter() {
+                let (sr_unchanged, sr_converted) = range.convert_source_range(&sr);
+                if let Some(sr_converted) = sr_converted {
+                    converted.push(sr_converted);
+                }
+                unchanged.extend(sr_unchanged.into_iter());
+            }
+        }
+
+        converted.extend(unchanged.into_iter());
+
+        converted
     }
 }
 
@@ -70,26 +166,6 @@ mod test {
         assert_eq!(range.convert(98), Some(50));
         assert_eq!(range.convert(99), Some(51));
         assert_eq!(range.convert(100), None);
-    }
-}
-
-mod part1 {
-    use super::*;
-
-    pub fn calculate(almanac: &Almanac) -> usize {
-        *almanac.locations().iter().min().expect("has min location")
-    }
-
-    #[cfg(test)]
-    mod test {
-        use super::*;
-
-        #[test]
-        fn test_example() {
-            let almanac = input::parse(&aoc::example::example_string("day5.txt"));
-
-            assert_eq!(calculate(&almanac), 35);
-        }
     }
 }
 
@@ -135,10 +211,61 @@ mod input {
     }
 }
 
+mod part1 {
+    use super::*;
+
+    pub fn calculate(almanac: &Almanac) -> usize {
+        almanac
+            .locations()
+            .iter()
+            .cloned()
+            .min()
+            .expect("has min location")
+    }
+
+    #[cfg(test)]
+    mod test {
+        use super::*;
+
+        #[test]
+        fn test_example() {
+            let almanac = input::parse(&aoc::example::example_string("day5.txt"));
+
+            assert_eq!(calculate(&almanac), 35);
+        }
+    }
+}
+
+mod part2 {
+    use super::*;
+
+    pub fn calculate(almanac: &Almanac) -> usize {
+        almanac
+            .locations_seed_ranges()
+            .iter()
+            .map(|sr| sr.start)
+            .min()
+            .expect("has min location")
+    }
+
+    #[cfg(test)]
+    mod test {
+        use super::*;
+
+        #[test]
+        fn test_example() {
+            let almanac = input::parse(&aoc::example::example_string("day5.txt"));
+
+            assert_eq!(calculate(&almanac), 46);
+        }
+    }
+}
+
 fn main() {
     let cli = aoc::cli::parse();
 
     let almanac = input::parse(&cli.input_string());
 
     println!("Part 1: {}", part1::calculate(&almanac));
+    println!("Part 2: {}", part2::calculate(&almanac));
 }
