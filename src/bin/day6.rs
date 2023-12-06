@@ -17,6 +17,7 @@ impl Race {
 
     pub fn winner_range(&self) -> (usize, usize) {
         // f64 seems critical for precision here.
+        // using f32 means the soln for part 2 is off by 1. not fabulous.
         // It's highly likely there's some better way of actually
         // implementing the quadratic formula that means you don't lose all this wonderful precision
         let b = -(self.time as f64);
