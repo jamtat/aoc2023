@@ -1,4 +1,4 @@
-use std::{collections::HashMap, fmt::Display, ops::Deref, str::FromStr};
+use std::{cmp, collections::HashMap, fmt::Display, marker::PhantomData, ops::Deref, str::FromStr};
 
 use aoc2023::aoc;
 
@@ -11,49 +11,6 @@ impl Display for Hand {
             write!(f, "{}", c as char)?
         }
         Ok(())
-    }
-}
-
-impl Ord for Hand {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.rank_pair().cmp(&other.rank_pair())
-    }
-}
-
-impl PartialOrd for Hand {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
-impl Hand {
-    pub fn hand_type(&self) -> HandType {
-        let counts = self.0.iter().fold(HashMap::new(), |mut freq, c| {
-            *freq.entry(*c).or_insert(0u8) += 1;
-            freq
-        });
-
-        let distinct = counts.len();
-        let max_freq = counts.values().copied().max().unwrap();
-
-        match (distinct, max_freq) {
-            (1, _) => HandType::FiveOfAKind,
-            (2, 4) => HandType::FourOfAKind,
-            (2, 3) => HandType::FullHouse,
-            (3, 3) => HandType::ThreeOfAKind,
-            (3, 2) => HandType::TwoPair,
-            (4, _) => HandType::OnePair,
-            (5, _) => HandType::High,
-            _ => unreachable!(),
-        }
-    }
-
-    fn rank_array(&self) -> [u8; 5] {
-        self.0.map(|c| card_rank(c))
-    }
-
-    fn rank_pair(&self) -> (u8, [u8; 5]) {
-        (self.hand_type().rank(), self.rank_array())
     }
 }
 
@@ -71,29 +28,6 @@ enum HandType {
 impl HandType {
     pub const fn rank(&self) -> u8 {
         (HandType::High as u8) - (*self as u8)
-    }
-}
-
-fn card_rank(c: u8) -> u8 {
-    match c {
-        b'A' => 14,
-        b'K' => 13,
-        b'Q' => 12,
-        b'J' => 11,
-        b'T' => 10,
-        b'2'..=b'9' => c - b'0',
-        _ => panic!("Invalid card {}", c),
-    }
-}
-
-#[cfg(test)]
-mod test {
-    use crate::card_rank;
-
-    #[test]
-    fn test_card_rank() {
-        assert_eq!(card_rank(b'2'), 2);
-        assert_eq!(card_rank(b'9'), 9);
     }
 }
 
@@ -147,16 +81,37 @@ impl Deref for Rounds {
     }
 }
 
-mod part1 {
-    use super::*;
+trait HandRank {
+    fn hand_type(hand: &Hand) -> HandType;
+    fn card_rank(card: u8) -> u8;
+}
 
-    pub fn calculate(rounds: &Rounds) -> usize {
-        let mut ranked: Vec<_> = rounds.0.clone();
+struct HandRanker<T: HandRank>(PhantomData<T>);
 
-        ranked.sort_by(|a, b| a.hand.cmp(&b.hand));
+impl<T: HandRank> HandRanker<T> {
+    pub fn new() -> Self {
+        Self(Default::default())
+    }
+
+    fn rank_array(hand: &Hand) -> [u8; 5] {
+        hand.0.map(|c| T::card_rank(c))
+    }
+
+    fn rank_pair(hand: &Hand) -> (u8, [u8; 5]) {
+        (T::hand_type(hand).rank(), Self::rank_array(hand))
+    }
+
+    fn cmp(a: &Hand, b: &Hand) -> cmp::Ordering {
+        Self::rank_pair(a).cmp(&Self::rank_pair(b))
+    }
+
+    pub fn rank<'a>(rounds: &'a Rounds) -> Vec<(usize, &'a Round)> {
+        let mut ranked: Vec<&Round> = rounds.0.iter().collect();
+
+        ranked.sort_by(|a, b| Self::cmp(&a.hand, &b.hand));
 
         ranked
-            .iter()
+            .into_iter()
             .enumerate()
             .map(|(i, round)| {
                 #[cfg(test)]
@@ -165,17 +120,71 @@ mod part1 {
                     i + 1,
                     round.hand,
                     round.bid,
-                    round.hand.hand_type(),
-                    round.hand.hand_type().rank(),
+                    T::hand_type(&round.hand),
+                    T::hand_type(&round.hand).rank(),
                 );
-                (i + 1) * round.bid
+                (i + 1, round)
             })
+            .collect()
+    }
+}
+
+mod part1 {
+    use super::*;
+
+    struct HandRankPart1;
+
+    impl HandRank for HandRankPart1 {
+        fn hand_type(hand: &Hand) -> HandType {
+            let counts = hand.0.iter().fold(HashMap::new(), |mut freq, c| {
+                *freq.entry(*c).or_insert(0u8) += 1;
+                freq
+            });
+
+            let distinct = counts.len();
+            let max_freq = counts.values().copied().max().unwrap();
+
+            match (distinct, max_freq) {
+                (1, _) => HandType::FiveOfAKind,
+                (2, 4) => HandType::FourOfAKind,
+                (2, 3) => HandType::FullHouse,
+                (3, 3) => HandType::ThreeOfAKind,
+                (3, 2) => HandType::TwoPair,
+                (4, _) => HandType::OnePair,
+                (5, _) => HandType::High,
+                _ => unreachable!(),
+            }
+        }
+
+        fn card_rank(c: u8) -> u8 {
+            match c {
+                b'A' => 14,
+                b'K' => 13,
+                b'Q' => 12,
+                b'J' => 11,
+                b'T' => 10,
+                b'2'..=b'9' => c - b'0',
+                _ => panic!("Invalid card {}", c),
+            }
+        }
+    }
+
+    pub fn calculate(rounds: &Rounds) -> usize {
+        HandRanker::<HandRankPart1>::rank(rounds)
+            .iter()
+            .map(|(i, round)| i * round.bid)
             .sum()
     }
 
     #[cfg(test)]
     mod test {
         use super::*;
+
+        #[test]
+        fn test_card_rank() {
+            assert_eq!(HandRankPart1::card_rank(b'2'), 2);
+            assert_eq!(HandRankPart1::card_rank(b'9'), 9);
+        }
 
         #[test]
         fn test_example() {
