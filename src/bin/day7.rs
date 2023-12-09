@@ -89,10 +89,6 @@ trait HandRank {
 struct HandRanker<T: HandRank>(PhantomData<T>);
 
 impl<T: HandRank> HandRanker<T> {
-    pub fn new() -> Self {
-        Self(Default::default())
-    }
-
     fn rank_array(hand: &Hand) -> [u8; 5] {
         hand.0.map(|c| T::card_rank(c))
     }
@@ -132,7 +128,7 @@ impl<T: HandRank> HandRanker<T> {
 mod part1 {
     use super::*;
 
-    struct HandRankPart1;
+    pub struct HandRankPart1;
 
     impl HandRank for HandRankPart1 {
         fn hand_type(hand: &Hand) -> HandType {
@@ -195,6 +191,75 @@ mod part1 {
     }
 }
 
+mod part2 {
+    use super::*;
+
+    struct HandRankPart2;
+
+    impl HandRank for HandRankPart2 {
+        fn hand_type(hand: &Hand) -> HandType {
+            let mut counts = hand.0.iter().fold(HashMap::new(), |mut freq, c| {
+                *freq.entry(*c).or_insert(0u8) += 1;
+                freq
+            });
+
+            let jokers = counts.remove(&b'J').unwrap_or(0);
+            let distinct = counts.len().max(1);
+            let max_freq = counts.values().copied().max().unwrap_or(0) + jokers;
+
+            #[cfg(test)]
+            println!(
+                "{} -> jokers={}, ({}, {})",
+                hand, jokers, distinct, max_freq
+            );
+            match (distinct, max_freq) {
+                (1, _) => HandType::FiveOfAKind,
+                (2, 4) => HandType::FourOfAKind,
+                (2, 3) => HandType::FullHouse,
+                (3, 3) => HandType::ThreeOfAKind,
+                (3, 2) => HandType::TwoPair,
+                (4, _) => HandType::OnePair,
+                (5, _) => HandType::High,
+                _ => unreachable!(),
+            }
+        }
+
+        fn card_rank(c: u8) -> u8 {
+            if c == b'J' {
+                1
+            } else {
+                part1::HandRankPart1::card_rank(c)
+            }
+        }
+    }
+
+    pub fn calculate(rounds: &Rounds) -> usize {
+        HandRanker::<HandRankPart2>::rank(rounds)
+            .iter()
+            .map(|(i, round)| i * round.bid)
+            .sum()
+    }
+
+    #[cfg(test)]
+    mod test {
+        use super::*;
+
+        #[test]
+        fn test_card_rank() {
+            assert_eq!(HandRankPart2::card_rank(b'2'), 2);
+            assert_eq!(HandRankPart2::card_rank(b'9'), 9);
+            assert_eq!(HandRankPart2::card_rank(b'J'), 1);
+        }
+
+        #[test]
+        fn test_example() {
+            let rounds = parse_input(&aoc::example::example_string("day7.txt"));
+
+            assert_eq!(calculate(&rounds), 5905);
+        }
+    }
+}
+
 fn parse_input(s: &str) -> Rounds {
     s.parse().unwrap()
 }
@@ -205,4 +270,5 @@ fn main() {
     let rounds: Rounds = parse_input(&cli.input_string());
 
     println!("Part 1: {}", part1::calculate(&rounds));
+    println!("Part 2: {}", part2::calculate(&rounds));
 }
