@@ -57,17 +57,19 @@ mod part2 {
     fn parse_line(line: &str) -> usize {
         let s = line.as_bytes();
 
-        let mut numbers = (0..s.len()).filter_map(|i| {
-            let s = &s[i..s.len()];
-            for (word, n) in &NUMBERS {
-                if s.starts_with(word) {
-                    return Some(*n);
+        let numbers = (0..s.len())
+            .filter_map(|i| {
+                let s = &s[i..s.len()];
+                for (word, n) in &NUMBERS {
+                    if s.starts_with(word) {
+                        return Some(*n);
+                    }
                 }
-            }
-            None
-        });
+                None
+            })
+            .collect::<Vec<_>>();
 
-        numbers.next().unwrap() * 10 + numbers.last().unwrap()
+        numbers.first().unwrap() * 10 + numbers.last().unwrap()
     }
 
     pub fn calculate(input: &str) -> usize {
