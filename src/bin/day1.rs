@@ -3,18 +3,19 @@ use aoc2023::aoc;
 mod part1 {
 
     fn parse_line(line: &str) -> usize {
-        let mut digits = line.bytes().filter(|&b| b'0' <= b && b <= b'9');
+        let mut digits = line
+            .bytes()
+            .filter(|&b| b'0' < b && b <= b'9')
+            .map(|b| (b - b'0') as usize);
 
         let first = digits.next().expect("Has one digit");
         let last = digits.last().unwrap_or(first);
 
-        format!("{}{}", first as char, last as char)
-            .parse()
-            .unwrap()
+        first * 10 + last
     }
 
     pub fn calculate(input: &str) -> usize {
-        input.lines().map(|line| parse_line(&line)).sum()
+        input.lines().map(|line| parse_line(line)).sum()
     }
 
     #[cfg(test)]
@@ -32,59 +33,41 @@ mod part1 {
 }
 
 mod part2 {
-
-    fn parse_digit(s: &[u8]) -> Option<usize> {
-        match s {
-            b"0" => Some(0),
-            b"1" | b"one" => Some(1),
-            b"2" | b"two" => Some(2),
-            b"3" | b"three" => Some(3),
-            b"4" | b"four" => Some(4),
-            b"5" | b"five" => Some(5),
-            b"6" | b"six" => Some(6),
-            b"7" | b"seven" => Some(7),
-            b"8" | b"eight" => Some(8),
-            b"9" | b"nine" => Some(9),
-            _ => None,
-        }
-    }
-
-    fn parse_next_digit(s: &[u8]) -> (&[u8], Option<usize>) {
-        let mut s = s;
-        while !s.is_empty() {
-            // Check if any of the next 5 bytes are a parse-able digit
-            for i in 1..=5 {
-                if s.len() < i {
-                    break;
-                }
-                if let Some(digit) = parse_digit(&s[0..i]) {
-                    // Don't consume the entire length of the parsed bytes, only shift forward
-                    // by 1 position otherwise this doesn't produce the right answer.
-                    // The provided example didn't make this clear.
-                    return (&s[1..], Some(digit));
-                }
-            }
-            s = &s[1..];
-        }
-        return (s, None);
-    }
+    static NUMBERS: phf::Map<&'static [u8], usize> = phf::phf_map!(
+        b"one" => 1,
+        b"two" => 2,
+        b"three" => 3,
+        b"four" => 4,
+        b"five" => 5,
+        b"six" => 6,
+        b"seven" => 7,
+        b"eight" => 8,
+        b"nine" => 9,
+        b"1" => 1,
+        b"2" => 2,
+        b"3" => 3,
+        b"4" => 4,
+        b"5" => 5,
+        b"6" => 6,
+        b"7" => 7,
+        b"8" => 8,
+        b"9" => 9,
+    );
 
     fn parse_line(line: &str) -> usize {
-        let mut last: Option<usize> = None;
         let s = line.as_bytes();
-        let (mut s, first) = parse_next_digit(s);
-        let first = first.unwrap();
 
-        let last = loop {
-            let (rest, digit) = parse_next_digit(s);
-            s = rest;
-            if digit.is_none() {
-                break last.unwrap_or(first);
+        let mut numbers = (0..s.len()).filter_map(|i| {
+            let s = &s[i..s.len()];
+            for (word, n) in &NUMBERS {
+                if s.starts_with(word) {
+                    return Some(*n);
+                }
             }
-            last = digit;
-        };
+            None
+        });
 
-        format!("{first}{last}").parse().unwrap()
+        numbers.next().unwrap() * 10 + numbers.last().unwrap()
     }
 
     pub fn calculate(input: &str) -> usize {
