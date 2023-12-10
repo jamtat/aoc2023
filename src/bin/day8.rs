@@ -1,8 +1,27 @@
-use std::{collections::HashMap, fmt::Display, str::from_utf8};
+use std::{
+    collections::HashMap,
+    fmt::{Display, Write},
+    str::from_utf8,
+};
 
 use aoc2023::aoc;
 
 type Node = [u8; 3];
+
+trait StartEnd {
+    fn is_start(&self) -> bool;
+    fn is_end(&self) -> bool;
+}
+
+impl StartEnd for Node {
+    fn is_start(&self) -> bool {
+        self[2] == b'A'
+    }
+
+    fn is_end(&self) -> bool {
+        self[2] == b'Z'
+    }
+}
 
 #[derive(Debug)]
 struct Input {
@@ -49,6 +68,15 @@ impl Display for Input {
 enum Step {
     L,
     R,
+}
+
+impl Display for Step {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_char(match self {
+            Step::L => 'L',
+            Step::R => 'R',
+        })
+    }
 }
 
 struct StepsIter<'a> {
@@ -106,6 +134,62 @@ mod part1 {
     }
 }
 
+mod part2 {
+    use super::*;
+    use aoc2023::quant::QuantIter;
+    use itertools::Itertools;
+
+    pub fn calculate(input: &Input) -> usize {
+        let starts: Vec<_> = input
+            .network
+            .keys()
+            .cloned()
+            .filter(Node::is_start)
+            .collect();
+
+        starts
+            .into_iter()
+            .map(|start| {
+                let mut node = &start;
+                let mut to_end = 0;
+                let mut step_iter = input.iter_steps();
+                let _end = loop {
+                    let step = step_iter.next().unwrap();
+                    if node.is_end() {
+                        break *node;
+                    }
+                    node = input.next(&node, step);
+                    to_end += 1;
+                };
+
+                #[cfg(test)]
+                println!(
+                    "{} -> {} to_end={}",
+                    from_utf8(&start).unwrap(),
+                    from_utf8(&_end).unwrap(),
+                    to_end
+                );
+
+                to_end
+            })
+            .lcm()
+            .unwrap()
+    }
+
+    #[cfg(test)]
+    mod test {
+        use super::*;
+
+        #[test]
+        fn test_example() {
+            assert_eq!(
+                calculate(&parse_input(aoc::example::example_lines("day8_3.txt"))),
+                6
+            );
+        }
+    }
+}
+
 fn parse_input(mut lines: impl Iterator<Item = String>) -> Input {
     let steps = lines.next().expect("Has steps");
     let steps = steps
@@ -142,5 +226,6 @@ fn main() {
 
     let input = parse_input(cli.line_reader());
 
-    println!("Part 1: {}", part1::calculate(&input))
+    println!("Part 1: {}", part1::calculate(&input));
+    println!("Part 2: {}", part2::calculate(&input));
 }
